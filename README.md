@@ -1,4 +1,5 @@
-# Active Learning of Dynamics and Data-Driven Control
+Stable Koopman operators
+========================
 
 ## Auto recovery of falling quadcopter code 
 
