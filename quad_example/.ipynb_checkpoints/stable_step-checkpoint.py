@@ -26,7 +26,7 @@ def gradients(X,Y, S, U, B):
     return e, S_grad, U_grad, B_grad
 
 
-def stabilize_discrete(X,Y, S, U, B, max_iter=10):
+def stabilize_discrete(X, Y, S, U, B, max_iter=10):
     # n = length()
     n = len(X) # number of Koopman basis functions
     na2 = np.linalg.norm(Y, 'fro')**2
@@ -55,9 +55,9 @@ def stabilize_discrete(X,Y, S, U, B, max_iter=10):
     i = 1
     alpha0 = 0.5
     alpha = alpha0
-    Ys = S
-    Yu = U
-    Yb = B
+    Ys = S.copy()
+    Yu = U.copy()
+    Yb = B.copy()
     restarti = 1
 
     while i < max_iter:
@@ -98,9 +98,9 @@ def stabilize_discrete(X,Y, S, U, B, max_iter=10):
             # Restart FGM if not a descent direction
                 restarti = 0
                 alpha_next = alpha0
-                Ys = S
-                Yu = U
-                Yb = B
+                Ys = S.copy()
+                Yu = U.copy()
+                Yb = B.copy()
                 error_next = error
                 #print(" No descent: Restart FGM")
 

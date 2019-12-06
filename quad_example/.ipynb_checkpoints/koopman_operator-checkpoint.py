@@ -1,8 +1,6 @@
-import numpy as np
-from numpy import sin, cos
-from scipy.linalg import polar, pinv2, logm
-
-from stable_step import stabilize_discrete, projectPSD, gradients 
+import autograd.numpy as np
+from autograd.numpy import sin, cos
+from autograd.scipy.linalg import logm
 
 NUM_STATE_OBS_ = 18
 NUM_ACTION_OBS_ = 4
@@ -38,25 +36,19 @@ def psiu(x):
         [0., 0., 0., 1.,]])
 
 
-
-class StableKoopmanOperator(object):
+class KoopmanOperator(object):
 
     def __init__(self, sampling_time, noise=1.0):
         self.noise = noise 
         self.sampling_time = sampling_time
-        
-
-        ### stable koopman setup
-        self.K = np.random.normal(0., 1.0, size=(NUM_OBS_, NUM_OBS_))
-
-        self.alpha = 1e-5
-
+        self.A = np.zeros((NUM_OBS_,NUM_OBS_))
+        self.G = np.zeros(self.A.shape)
+        self.K = np.zeros(self.A.shape)
         self.Kx = np.ones((NUM_STATE_OBS_, NUM_STATE_OBS_))
         self.Kx = np.random.normal(0., 1.0, size=self.Kx.shape) * noise 
         self.Ku = np.ones((NUM_STATE_OBS_, NUM_ACTION_OBS_))
         self.Ku = np.random.normal(0., 1.0, size=self.Ku.shape) * noise 
         self.counter = 0
-
 
     def clear_operator(self):
         self.counter = 0
@@ -65,42 +57,31 @@ class StableKoopmanOperator(object):
         self.G = np.zeros(self.A.shape)
         self.K = np.zeros(self.A.shape)
 
-    def compute_operator_from_data(self, datain, cdata, dataout, verbose=False, max_iter=10):
-        # X in R n x P
-        # Y in R n x P, n is num basis
-        X = []
-        Y = []
-        for x, xpo, u in zip(datain, dataout, cdata):
-            X.append(
-                np.concatenate([psix(x), np.dot(psiu(x), u)], axis=0)
-            )
-            Y.append(
-                np.concatenate([psix(xpo), np.dot(psiu(xpo), u)], axis=0)
-            )
-        X = np.stack(X).T
-        Y = np.stack(Y).T 
-
-        assert X.shape[0] == NUM_OBS_, 'Looks like it could be backwards'
-
-        
-        if self.counter == 0:
-            self.S = np.identity(NUM_OBS_)
-            [self.U, self.B] = polar(np.matmul(Y, pinv2(X)) )
-            self.B = projectPSD(self.B, 0, 1)
-        else:
-            self.S = np.identity(NUM_OBS_)
-            [self.U, self.B] = polar(np.matmul(Y, pinv2(X)) )
-            self.B = projectPSD(self.B, 0, 1)
-
-        self.S, self.U, self.B, self.K, err = stabilize_discrete(X, Y, self.S.copy(), self.U.copy(), self.B.copy(), max_iter=max_iter)
-
+    def compute_operator_from_data(self, datain, cdata, dataout):
+        # for i in range(len(cdata)-1):
+        self.counter += 1
+        fk = np.hstack((
+                    psix(datain),  np.dot(psiu(datain), cdata)
+                    ))
+        fkpo = np.hstack((
+                    psix(dataout),  np.dot(psiu(dataout), cdata)
+                    ))
+        self.G = self.G + (np.outer(fk, fk) - self.G)/self.counter
+        self.A = self.A + (np.outer( fk, fkpo)- self.A)/self.counter
+        # self.G = self.G + np.outer(fk, fk)
+        # self.A = self.A + np.outer(fk, fkpo)
+        self.K = np.linalg.pinv(self.G).dot(self.A)
         Kcont = np.real(logm(self.K, disp=False)[0]/self.sampling_time)
-        self.Kx = Kcont[0:NUM_STATE_OBS_, 0:NUM_STATE_OBS_]
-        self.Ku = Kcont[0:NUM_STATE_OBS_, NUM_STATE_OBS_:NUM_OBS_]
-        if verbose:
-            print(err)
-        
-        return X, Y
+        self.Kx = Kcont.T[0:NUM_STATE_OBS_, 0:NUM_STATE_OBS_]
+        self.Ku = Kcont.T[0:NUM_STATE_OBS_, NUM_STATE_OBS_:NUM_OBS_]
+
+        #try:
+        #    self.K = np.linalg.pinv(self.G).dot(self.A)
+        #    Kcont = np.real(logm(self.K)/self.sampling_time)
+        #    self.Kx = Kcont.T[0:NUM_STATE_OBS_, 0:NUM_STATE_OBS_]
+        #    self.Ku = Kcont.T[0:NUM_STATE_OBS_, NUM_STATE_OBS_:NUM_OBS_]
+        #except np.LinAlgError as e:
+        #    print('did not invert')
 
     def transform_state(self, state):
         return psix(state)

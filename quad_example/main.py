@@ -2,6 +2,7 @@
 
 import numpy as np
 from stable_koopman_operator import StableKoopmanOperator
+from koopman_operator import KoopmanOperator 
 from quad import Quad
 from task import Task, Adjoint
 import matplotlib.pyplot as plt
@@ -11,6 +12,8 @@ from lqr import FiniteHorizonLQR
 from quatmath import euler2mat 
 
 from replay_buffer import ReplayBuffer
+
+import pickle as pkl 
 
 np.set_printoptions(precision=4, suppress=True)
 np.random.seed(50) ### set the seed for reproducibility
@@ -35,6 +38,8 @@ def main():
     ### the timing parameters for the quad are used
     ### to construct the koopman operator and the adjoint dif-eq 
     koopman_operator = StableKoopmanOperator(quad.time_step)
+    benchmark_operator = KoopmanOperator(quad.time_step)
+
     adjoint = Adjoint(quad.time_step)
 
     task = Task() ### this creates the task
@@ -56,9 +61,10 @@ def main():
     state = np.r_[_g, _twist]
 
     target_orientation = np.array([0., 0., -9.81])
+    task.inf_weight = 0.0 
 
     err = np.zeros(simulation_time)
-    batch_size = 2
+    batch_size = 32
     for t in range(simulation_time):
 
         #### measure state and transform through koopman observables
@@ -91,17 +97,26 @@ def main():
         next_state = quad.step(state, ustar)
         
         ### update the koopman operator from data 
-        replay_buffer.push(get_measurement(state), ustar, get_measurement(next_state))
+        replay_buffer.push(get_measurement(state.copy()), ustar, get_measurement(next_state.copy()))
         
+        benchmark_operator.compute_operator_from_data(get_measurement(state.copy()), ustar, get_measurement(next_state.copy()))
+
         if len(replay_buffer) > batch_size:
             input_data, control_data, output_data = replay_buffer.sample(batch_size)
             if t % 100 == 0:
-                koopman_operator.compute_operator_from_data(input_data, control_data, 
-                                                                output_data, verbose=True)
-
+                _X, _Y = koopman_operator.compute_operator_from_data(input_data, control_data, 
+                                                                output_data, verbose=False, max_iter=20)
+                #stable_K_err = np.linalg.norm(_Y - np.dot(koopman_operator.K, _X))
+                #K_err = np.linalg.norm(_Y - np.dot(benchmark_operator.K.T, _X))
+                #print('stable : ', stable_K_err, 'normal : ', K_err)
+                #print(np.abs(np.linalg.eig(koopman_operator.K.T)[0]), np.abs(np.linalg.eig(benchmark_operator.K.T)[0]))
+                
+                #pkl.dump([_X, _Y, koopman_operator.K], open('data_4_giorgos.pkl', 'wb'))
+                #print('done')
+                #input()
         state = next_state ### backend : update the simulator state 
         ### we can also use a decaying weight on inf gain
-        task.inf_weight = 100.0 * (0.99**(t))
+        task.inf_weight = 0.0 * (0.99**(t))
         if t % 100 == 0:
             print('time : {}, pose : {}, {}'.format(t*quad.time_step, 
                                                     get_measurement(state), ustar))

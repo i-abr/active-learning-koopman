@@ -6,7 +6,7 @@ import math
 def projectPSD(Q, epsilon = 0, delta = math.inf):
     # if len(locals() >= 3
     # delta = math.inf
-    Q = (Q+Q.T)/2
+    Q = (Q+Q.T)/2.0
     [e, V] = np.linalg.eig(Q)
     # print(np.diag( np.minimum( delta, np.maximum(e, epsilon) ) ))
     Q_PSD = V.dot(np.diag( np.minimum( delta, np.maximum(e, epsilon) ) )).dot(V.T)
@@ -26,7 +26,7 @@ def gradients(X,Y, S, U, B):
     return e, S_grad, U_grad, B_grad
 
 
-def stabilize_discrete(X,Y, S, U, B, max_iter=10):
+def stabilize_discrete(X, Y, S, U, B, max_iter=10):
     # n = length()
     n = len(X) # number of Koopman basis functions
     na2 = np.linalg.norm(Y, 'fro')**2
@@ -51,13 +51,13 @@ def stabilize_discrete(X,Y, S, U, B, max_iter=10):
     # Initialization
     error,_,_,_ = gradients(X,Y,S,U,B)
     #print("Error is ", error)
-    step = 1/L
+    step = 1.0/L
     i = 1
     alpha0 = 0.5
     alpha = alpha0
-    Ys = S
-    Yu = U
-    Yb = B
+    Ys = S.copy()
+    Yu = U.copy()
+    Yb = B.copy()
     restarti = 1
 
     while i < max_iter:
@@ -77,7 +77,7 @@ def stabilize_discrete(X,Y, S, U, B, max_iter=10):
             Bn = Yb - gB*step
 
             # Project onto feasible set
-            Sn = projectPSD(Sn, 1e-14)
+            Sn = projectPSD(Sn, 0)
             Un,_ = polar(Un)
             Bn = projectPSD(Bn, 0, 1)
             # print("Projected")
@@ -90,17 +90,17 @@ def stabilize_discrete(X,Y, S, U, B, max_iter=10):
             inner_iter0 = inner_iter
 
         # Conjugate with FGM weights, if cost decreased; else, restart FGM
-        alpha_next = (math.sqrt(alpha**4 + 4*alpha**2) - alpha**2 )/2
-        beta = alpha * (1 - alpha) / (alpha**2 + alpha_next)
+        alpha_next = (math.sqrt(alpha**4 + 4.*(alpha**2)) - alpha**2 )/2.
+        beta = alpha * (1.0 - alpha) / (alpha**2 + alpha_next)
 
         if (inner_iter >= lsitermax + 1): # line search failed
             if restarti == 1:
             # Restart FGM if not a descent direction
                 restarti = 0
                 alpha_next = alpha0
-                Ys = S
-                Yu = U
-                Yb = B
+                Ys = S.copy()
+                Yu = U.copy()
+                Yb = B.copy()
                 error_next = error
                 #print(" No descent: Restart FGM")
 
@@ -108,7 +108,7 @@ def stabilize_discrete(X,Y, S, U, B, max_iter=10):
                 eS,_ = np.linalg.eig(S)
                 L = (np.max(eS)/ np.min(eS))**2
                 # Use information from the first step: how many steps to decrease
-                step = 1/L/lsparam**inner_iter0
+                step = (1.0/L)/(lsparam**inner_iter0)
             elif (restarti == 0): # no previous restart/descent direction
                 error_next = error
                 break
@@ -121,10 +121,10 @@ def stabilize_discrete(X,Y, S, U, B, max_iter=10):
             Yu = Un + beta * (Un - U)
             Yb = Bn + beta * (Bn - B)
             # Keep new iterates in memory
-            S = Sn
-            U = Un
-            B = Bn
-            i = i + 1
+            S = Sn.copy()
+            U = Un.copy()
+            B = Bn.copy()
+        i = i + 1
         error = error_next
         alpha = alpha_next
         print(error) 

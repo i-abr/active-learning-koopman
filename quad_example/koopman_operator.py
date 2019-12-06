@@ -96,8 +96,7 @@ class KoopmanOperator(object):
     def get_linearization(self):
         return self.Kx, self.Ku
 
-    def step(self, state, action):
-        return state + self.f(state, action) * self.sampling_time
+
 
     # def step(self, state, action):
     #     k1 = self.f(state, action) * self.sampling_time
