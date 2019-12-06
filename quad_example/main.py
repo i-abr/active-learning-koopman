@@ -61,7 +61,7 @@ def main():
     state = np.r_[_g, _twist]
 
     target_orientation = np.array([0., 0., -9.81])
-    task.inf_weight = 0.0 
+    task.inf_weight = 100.0 
 
     err = np.zeros(simulation_time)
     batch_size = 32
@@ -100,23 +100,19 @@ def main():
         replay_buffer.push(get_measurement(state.copy()), ustar, get_measurement(next_state.copy()))
         
         benchmark_operator.compute_operator_from_data(get_measurement(state.copy()), ustar, get_measurement(next_state.copy()))
+        koopman_operator.compute_operator_from_data(get_measurement(state.copy()), ustar, get_measurement(next_state.copy()), verbose=False, max_iter=1)
 
-        if len(replay_buffer) > batch_size:
-            input_data, control_data, output_data = replay_buffer.sample(batch_size)
-            if t % 100 == 0:
-                _X, _Y = koopman_operator.compute_operator_from_data(input_data, control_data, 
-                                                                output_data, verbose=False, max_iter=20)
-                #stable_K_err = np.linalg.norm(_Y - np.dot(koopman_operator.K, _X))
-                #K_err = np.linalg.norm(_Y - np.dot(benchmark_operator.K.T, _X))
-                #print('stable : ', stable_K_err, 'normal : ', K_err)
-                #print(np.abs(np.linalg.eig(koopman_operator.K.T)[0]), np.abs(np.linalg.eig(benchmark_operator.K.T)[0]))
-                
-                #pkl.dump([_X, _Y, koopman_operator.K], open('data_4_giorgos.pkl', 'wb'))
-                #print('done')
-                #input()
+        #stable_K_err = np.linalg.norm(_Y - np.dot(koopman_operator.K, _X))
+        #K_err = np.linalg.norm(_Y - np.dot(benchmark_operator.K.T, _X))
+        #print('stable : ', stable_K_err, 'normal : ', K_err)
+        #print(np.abs(np.linalg.eig(koopman_operator.K.T)[0]), np.abs(np.linalg.eig(benchmark_operator.K.T)[0]))
+        
+        #pkl.dump([_X, _Y, koopman_operator.K], open('data_4_giorgos.pkl', 'wb'))
+        #print('done')
+        #input()
         state = next_state ### backend : update the simulator state 
         ### we can also use a decaying weight on inf gain
-        task.inf_weight = 0.0 * (0.99**(t))
+        task.inf_weight = 100.0 * (0.99**(t))
         if t % 100 == 0:
             print('time : {}, pose : {}, {}'.format(t*quad.time_step, 
                                                     get_measurement(state), ustar))
