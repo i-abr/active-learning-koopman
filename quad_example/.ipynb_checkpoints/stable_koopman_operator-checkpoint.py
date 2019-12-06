@@ -1,7 +1,8 @@
 import numpy as np
 from numpy import sin, cos
-from scipy.linalg import logm
-from scipy.linalg import polar
+from scipy.linalg import polar, pinv2, logm
+
+from stable_step import stabilize_discrete, projectPSD, gradients 
 
 NUM_STATE_OBS_ = 18
 NUM_ACTION_OBS_ = 4
@@ -36,6 +37,8 @@ def psiu(x):
         [0., 0., 1., 0.,],
         [0., 0., 0., 1.,]])
 
+
+
 class StableKoopmanOperator(object):
 
     def __init__(self, sampling_time, noise=1.0):
@@ -44,15 +47,7 @@ class StableKoopmanOperator(object):
         
 
         ### stable koopman setup
-        self.S = np.eye(NUM_OBS_)
         self.K = np.random.normal(0., 1.0, size=(NUM_OBS_, NUM_OBS_))
-        [self.U, self.B] = polar(self.K)
-
-        # project 
-        self.B = self.projectPSD(self.B)
-        self.S = self.projectPSD(self.S)
-       
-        [self.U, _] = polar(self.U)
 
         self.alpha = 1e-5
 
@@ -62,13 +57,6 @@ class StableKoopmanOperator(object):
         self.Ku = np.random.normal(0., 1.0, size=self.Ku.shape) * noise 
         self.counter = 0
 
-    def projectPSD(self, Q, eps=0., delta=1.):
-        Q = (Q + Q.T) / 2.0
-        [e_vals, e_vecs] = np.linalg.eig(Q)
-        e_vals_sat = np.clip(e_vals, eps, delta)
-        return e_vecs.dot(np.diag(e_vals_sat)).dot(e_vecs.T)
-
-
 
     def clear_operator(self):
         self.counter = 0
@@ -77,37 +65,36 @@ class StableKoopmanOperator(object):
         self.G = np.zeros(self.A.shape)
         self.K = np.zeros(self.A.shape)
 
-    def compute_operator_from_data(self, datain, cdata, dataout):
-        self.counter += 1
+    def compute_operator_from_data(self, datain, cdata, dataout, verbose=False):
+        # X in R n x P
+        # Y in R n x P, n is num basis
+        X = []
+        Y = []
+        for x, xpo, u in zip(datain, dataout, cdata):
+            X.append(
+                np.concatenate([psix(x), np.dot(psiu(x), u)], axis=0)
+            )
+            Y.append(
+                np.concatenate([psix(xpo), np.dot(psiu(xpo), u)], axis=0)
+            )
+        X = np.stack(X).T
+        Y = np.stack(Y).T 
 
-        X = np.concatenate([psix(datain), np.dot(psiu(datain), cdata)], axis=0).reshape(-1,1)
-        Y = np.concatenate([psix(dataout), np.dot(psiu(dataout), cdata)], axis=0).reshape(-1,1)
+        assert X.shape[0] == NUM_OBS_, 'Looks like it could be backwards'
+
         
-        Sinv = np.linalg.inv(self.S)
-        R = Sinv.dot(self.U).dot(self.B).dot(self.S).dot(X)
+        if self.counter == 0:
+            self.S = np.identity(NUM_OBS_)
+            [self.U, self.B] = polar(np.matmul(Y, pinv2(X)) )
+            self.B = projectPSD(self.B, 0, 1)
 
-        gradS = -Sinv.T.dot(R-Y).dot(X.T).dot(self.S.T).dot(self.B.T).dot(self.U.T).dot(Sinv.T) \
-                    + self.B.T.dot(self.U.T).dot(Sinv.T).dot((R-Y).dot(X.T))
-        gradB = -Sinv.T.dot(Y - Sinv.dot(self.U).dot(self.B).dot(self.S).dot(X)).dot(X.T).dot(self.S.T).dot(self.B.T)
-        gradU = -self.U.T.dot(Sinv.T).dot(Y - Sinv.dot(self.U).dot(self.B).dot(self.S).dot(X)).dot(X.T).dot(self.S.T)
+        self.S, self.U, self.B, self.K, err = stabilize_discrete(X, Y, self.S, self.U, self.B)
 
-        self.S -= self.alpha * gradS
-        self.B -= self.alpha * gradB
-        self.U -= self.alpha * gradU 
-
-        self.S = self.projectPSD(self.S)
-        self.B = self.projectPSD(self.B)
-        [self.U, _] = polar(self.U)
-        
-        self.K = np.linalg.inv(self.S).dot(self.U).dot(self.B).dot(self.S)
         Kcont = np.real(logm(self.K, disp=False)[0]/self.sampling_time)
         self.Kx = Kcont[0:NUM_STATE_OBS_, 0:NUM_STATE_OBS_]
         self.Ku = Kcont[0:NUM_STATE_OBS_, NUM_STATE_OBS_:NUM_OBS_]
-        
-        self.alpha *= 0.99**self.counter
-        
-        print(np.linalg.norm(Y-np.dot(self.K, X)))
-#         print(np.dot(self.K, X))
+        if verbose:
+            print(err)
 
     def transform_state(self, state):
         return psix(state)

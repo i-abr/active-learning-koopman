@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import numpy as np
-from koopman_operator import KoopmanOperator
+from stable_koopman_operator import StableKoopmanOperator
 from quad import Quad
 from task import Task, Adjoint
 import matplotlib.pyplot as plt
@@ -9,6 +9,8 @@ import scipy.linalg
 from group_theory import VecTose3, TransToRp, RpToTrans
 from lqr import FiniteHorizonLQR
 from quatmath import euler2mat 
+
+from replay_buffer import ReplayBuffer
 
 np.set_printoptions(precision=4, suppress=True)
 np.random.seed(50) ### set the seed for reproducibility
@@ -28,10 +30,11 @@ def get_position(x):
 def main():
 
     quad = Quad() ### instantiate a quadcopter
+    replay_buffer = ReplayBuffer(100000)
 
     ### the timing parameters for the quad are used
     ### to construct the koopman operator and the adjoint dif-eq 
-    koopman_operator = KoopmanOperator(quad.time_step)
+    koopman_operator = StableKoopmanOperator(quad.time_step)
     adjoint = Adjoint(quad.time_step)
 
     task = Task() ### this creates the task
@@ -55,6 +58,7 @@ def main():
     target_orientation = np.array([0., 0., -9.81])
 
     err = np.zeros(simulation_time)
+    batch_size = 2
     for t in range(simulation_time):
 
         #### measure state and transform through koopman observables
@@ -85,10 +89,15 @@ def main():
 
         ### advacne quad subject to ustar 
         next_state = quad.step(state, ustar)
+        
         ### update the koopman operator from data 
-        koopman_operator.compute_operator_from_data(get_measurement(state),
-                                                    ustar, 
-                                                    get_measurement(next_state))
+        replay_buffer.push(get_measurement(state), ustar, get_measurement(next_state))
+        
+        if len(replay_buffer) > batch_size:
+            input_data, control_data, output_data = replay_buffer.sample(batch_size)
+            if t % 100 == 0:
+                koopman_operator.compute_operator_from_data(input_data, control_data, 
+                                                                output_data, verbose=True)
 
         state = next_state ### backend : update the simulator state 
         ### we can also use a decaying weight on inf gain
