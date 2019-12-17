@@ -23,7 +23,7 @@ class Adjoint(object):
 
 class Task(object):
 
-    
+
     def __init__(self):
         Qdiag = np.zeros(NUM_STATE_OBS_)
         Qdiag[0:3] = 1. # g vec
@@ -67,7 +67,7 @@ class Task(object):
     def m(self, state):
         error = state - self.target_expanded_state
         error_q = np.dot(self.Qf, error)
-        return np.dot(error, error_q)*self.final_cost 
+        return np.dot(error, error_q)*self.final_cost
 
     def mdx(self, state):
         error = state - self.target_expanded_state

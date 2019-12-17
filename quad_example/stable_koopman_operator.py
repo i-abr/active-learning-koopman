@@ -2,7 +2,7 @@ import numpy as np
 from numpy import sin, cos
 from scipy.linalg import polar, pinv2, logm
 
-from stable_step import stabilize_discrete, projectPSD, gradients 
+from stable_step import stabilize_discrete, projectPSD, gradients
 from copy import deepcopy
 
 NUM_STATE_OBS_ = 18
@@ -43,9 +43,9 @@ def psiu(x):
 class StableKoopmanOperator(object):
 
     def __init__(self, sampling_time, noise=1.0):
-        self.noise = noise 
+        self.noise = noise
         self.sampling_time = sampling_time
-        
+
 
         ### stable koopman setup
         self.A = np.zeros((NUM_OBS_,NUM_OBS_))
@@ -55,16 +55,16 @@ class StableKoopmanOperator(object):
         self.alpha = 1e-5
 
         self.Kx = np.ones((NUM_STATE_OBS_, NUM_STATE_OBS_))
-        self.Kx = np.random.normal(0., 1.0, size=self.Kx.shape) * noise 
+        self.Kx = np.random.normal(0., 1.0, size=self.Kx.shape) * noise
         self.Ku = np.ones((NUM_STATE_OBS_, NUM_ACTION_OBS_))
-        self.Ku = np.random.normal(0., 1.0, size=self.Ku.shape) * noise 
+        self.Ku = np.random.normal(0., 1.0, size=self.Ku.shape) * noise
         self.counter = 0
 
 
     def clear_operator(self):
         self.counter = 0
-        self.Kx = np.random.normal(0., 1.0, size=self.Kx.shape) * self.noise 
-        self.Ku = np.random.normal(0., 1.0, size=self.Ku.shape) * self.noise 
+        self.Kx = np.random.normal(0., 1.0, size=self.Kx.shape) * self.noise
+        self.Ku = np.random.normal(0., 1.0, size=self.Ku.shape) * self.noise
         self.G = np.zeros(self.A.shape)
         self.K = np.zeros(self.A.shape)
 
@@ -79,18 +79,29 @@ class StableKoopmanOperator(object):
         self.A = self.A + (np.outer(fkpo, fk)- self.A)/(self.counter+1)
 
         self.K_lsq = np.dot(self.A, np.linalg.pinv(self.G))
-        
+
         if self.counter == 0:
             self.S = np.identity(NUM_OBS_)
             [self.U, self.B] = polar(self.K_lsq)
             self.B = projectPSD(self.B, 0, 1)
+        [self.U, self.B] = polar(self.K_lsq)
+        self.B = projectPSD(self.B, 0, 1)
         Sprev = self.S.copy()
         Uprev = self.U.copy()
         Bprev = self.B.copy()
 
-        self.S, self.U, self.B, self.K, err = stabilize_discrete(deepcopy(self.A), deepcopy(self.G), deepcopy(self.S), deepcopy(self.U), deepcopy(self.B), max_iter=max_iter) 
-        
-        print(np.linalg.norm(self.S-Sprev, 'fro'), np.linalg.norm(self.U-Uprev, 'fro'))
+        _, ds, du, db = gradients(self.G, self.A, self.S, self.U, self.B)
+        N = self.counter + 1
+        self.S -= 1e-3 * np.real(ds) / N
+        self.U -= 1e-3 * np.real(du) / N
+        self.B -= 1e-3 * np.real(db) / N
+        # self.S, self.U, self.B, self._K_proj, err = stabilize_discrete(deepcopy(self.A), deepcopy(self.G), deepcopy(self.S), deepcopy(self.U), deepcopy(self.B), max_iter=max_iter)
+        self._K_proj = np.dot(self.U, self.B)
+        # print(np.linalg.norm(self.S-Sprev, 'fro'), np.linalg.norm(self.U-Uprev, 'fro'))
+
+        self.K = (1-0.99) * self._K_proj + 0.99 * self.K_lsq
+
+        print(np.max(np.linalg.eig(self.K)[0]))
 
         Kcont = np.real(logm(self.K, disp=False)[0]/self.sampling_time)
         self.Kx = Kcont[0:NUM_STATE_OBS_, 0:NUM_STATE_OBS_]
@@ -98,7 +109,7 @@ class StableKoopmanOperator(object):
         if verbose:
             print(err)
         self.counter += 1
-        
+
     #def compute_operator_from_data(self, datain, cdata, dataout, verbose=False, max_iter=10):
     #    # X in R n x P
     #    # Y in R n x P, n is num basis
@@ -112,11 +123,11 @@ class StableKoopmanOperator(object):
     #            np.concatenate([psix(xpo), np.dot(psiu(xpo), u)], axis=0)
     #        )
     #    X = np.stack(X).T
-    #    Y = np.stack(Y).T 
+    #    Y = np.stack(Y).T
 
     #    assert X.shape[0] == NUM_OBS_, 'Looks like it could be backwards'
 
-    #    
+    #
     #    if self.counter == 0:
     #        self.S = np.identity(NUM_OBS_)
     #        [self.U, self.B] = polar(np.matmul(Y, pinv2(X)) )
@@ -133,7 +144,7 @@ class StableKoopmanOperator(object):
     #    self.Ku = Kcont[0:NUM_STATE_OBS_, NUM_STATE_OBS_:NUM_OBS_]
     #    if verbose:
     #        print(err)
-    #    
+    #
     #    return X, Y
 
     def transform_state(self, state):

@@ -39,26 +39,33 @@ def psiu(x):
 class KoopmanOperator(object):
 
     def __init__(self, sampling_time, noise=1.0):
-        self.noise = noise 
+        self.noise = noise
         self.sampling_time = sampling_time
         self.A = np.zeros((NUM_OBS_,NUM_OBS_))
         self.G = np.zeros(self.A.shape)
         self.K = np.zeros(self.A.shape)
         self.Kx = np.ones((NUM_STATE_OBS_, NUM_STATE_OBS_))
-        self.Kx = np.random.normal(0., 1.0, size=self.Kx.shape) * noise 
+        self.Kx = np.random.normal(0., 1.0, size=self.Kx.shape) * noise
         self.Ku = np.ones((NUM_STATE_OBS_, NUM_ACTION_OBS_))
-        self.Ku = np.random.normal(0., 1.0, size=self.Ku.shape) * noise 
+        self.Ku = np.random.normal(0., 1.0, size=self.Ku.shape) * noise
         self.counter = 0
 
     def clear_operator(self):
         self.counter = 0
-        self.Kx = np.random.normal(0., 1.0, size=self.Kx.shape) * self.noise 
-        self.Ku = np.random.normal(0., 1.0, size=self.Ku.shape) * self.noise 
+        self.Kx = np.random.normal(0., 1.0, size=self.Kx.shape) * self.noise
+        self.Ku = np.random.normal(0., 1.0, size=self.Ku.shape) * self.noise
         self.G = np.zeros(self.A.shape)
         self.K = np.zeros(self.A.shape)
 
-    def compute_operator_from_data(self, datain, cdata, dataout):
-        # for i in range(len(cdata)-1):
+    def set_operator(self, K):
+        self.K = K.copy()
+        Kcont = np.real(logm(self.K, disp=False)[0]/self.sampling_time)
+        self.Kx = Kcont[0:NUM_STATE_OBS_, 0:NUM_STATE_OBS_]
+        self.Ku = Kcont[0:NUM_STATE_OBS_, NUM_STATE_OBS_:NUM_OBS_]
+        print('set operator', np.diag(self.K))
+
+    def compute_operator_from_data(self, datain, cdata, dataout, verbose=False, max_iter=None):
+        # for i in range(len(cdata)-1):,
         self.counter += 1
         fk = np.hstack((
                     psix(datain),  np.dot(psiu(datain), cdata)
@@ -96,7 +103,8 @@ class KoopmanOperator(object):
     def get_linearization(self):
         return self.Kx, self.Ku
 
-
+    def step(self, state, action):
+        return state + self.f(state, action) * self.sampling_time
 
     # def step(self, state, action):
     #     k1 = self.f(state, action) * self.sampling_time
