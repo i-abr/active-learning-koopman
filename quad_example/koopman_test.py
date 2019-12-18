@@ -14,8 +14,11 @@ from quatmath import euler2mat
 from replay_buffer import ReplayBuffer
 
 import pickle as pkl
+from datetime import datetime
 
 import scipy.io as sio
+
+import os
 
 np.set_printoptions(precision=4, suppress=True)
 # np.random.seed(50) ### set the seed for reproducibility
@@ -49,7 +52,7 @@ def main():
     task = Task() ### this creates the task
 
     simulation_time = 2000
-    horizon = 20 ### time horizon
+    horizon = 40 ### time horizon
     sat_val = 6.0 ### saturation value
     control_reg = np.diag([1.] * 4) ### control regularization
     inv_control_reg = np.linalg.inv(control_reg) ### precompute this
@@ -64,7 +67,7 @@ def main():
     target_orientation = np.array([0., 0., -9.81])
     task.inf_weight = 0.
 
-    err = np.zeros(simulation_time)
+    err = []
 
     for t in range(simulation_time):
 
@@ -72,8 +75,9 @@ def main():
         m_state = get_measurement(state)
 
         t_state = koopman_operator.transform_state(m_state)
-        err[t] = np.linalg.norm(m_state[:3] - target_orientation) + np.linalg.norm(m_state[3:])
-
+        err.append(
+            np.linalg.norm(m_state[:3] - target_orientation) + np.linalg.norm(m_state[3:])
+        )
         Kx, Ku = koopman_operator.get_linearization() ### grab the linear matrices
         lqr_policy = FiniteHorizonLQR(Kx, Ku, task.Q, task.R, task.Qf, horizon=horizon) # instantiate a lqr controller
         lqr_policy.set_target_state(task.target_expanded_state) ## set target state to koopman observable state
@@ -103,8 +107,13 @@ def main():
         if t % 100 == 0:
             print('time : {}, pose : {}, {}'.format(t*quad.time_step,
                                                     get_measurement(state), ustar))
+    now = datetime.now()
+    date_str = now.strftime("%Y-%m-%d_%H-%M-%S")
 
-
+    path = './data/' + 'stable_koopman/'
+    if os.path.exists(path) is False:
+        os.makedirs(path)
+    pkl.dump(err, open(path + 'err_data_' + date_str + '.pkl', 'wb'))
 
 if __name__=='__main__':
     main()
