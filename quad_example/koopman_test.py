@@ -17,8 +17,15 @@ import pickle as pkl
 from datetime import datetime
 
 import scipy.io as sio
-
 import os
+
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--T', type=int, default=20)
+parser.add_argument('--type', type=int, default=0)
+
+args = parser.parse_args()
 
 np.set_printoptions(precision=4, suppress=True)
 # np.random.seed(50) ### set the seed for reproducibility
@@ -39,11 +46,11 @@ def main():
     quad = Quad() ### instantiate a quadcopter
     koopman_operator = KoopmanOperator(quad.time_step)
 
-    data = sio.loadmat('Quadrotor_ActiveLearning_Stable_Kd.mat', squeeze_me=True)
-    K = data['Kd']
-    # print(K[:, :5])
-    # input()
-    # K = pkl.load(open('al_k_opt.pkl', 'rb'))[-1].T
+    if args.type == 0:
+        K = pkl.load(open('al_k_opt.pkl', 'rb'))[-1].T
+    elif args.type == 1:
+        data = sio.loadmat('Quadrotor_ActiveLearning_Stable_Kd.mat', squeeze_me=True)
+        K = data['Kd']
 
     koopman_operator.set_operator(K)
 
@@ -52,7 +59,7 @@ def main():
     task = Task() ### this creates the task
 
     simulation_time = 2000
-    horizon = 40 ### time horizon
+    horizon = args.T ### time horizon
     sat_val = 6.0 ### saturation value
     control_reg = np.diag([1.] * 4) ### control regularization
     inv_control_reg = np.linalg.inv(control_reg) ### precompute this
@@ -110,10 +117,22 @@ def main():
     now = datetime.now()
     date_str = now.strftime("%Y-%m-%d_%H-%M-%S")
 
-    path = './data/' + 'stable_koopman/'
+    if args.type == 0:
+        kind = 'actively_learned_koopman'
+    elif args.type == 1:
+        kind = 'stable_koopman'
+
+
+    path = './data/'
+
     if os.path.exists(path) is False:
         os.makedirs(path)
-    pkl.dump(err, open(path + 'err_data_' + date_str + '.pkl', 'wb'))
+    save_data = {
+        'err' : err,
+        'kind' : kind,
+        'T' : horizon
+    }
+    pkl.dump(save_data, open(path + 'data_' + date_str + '.pkl', 'wb'))
 
 if __name__=='__main__':
     main()

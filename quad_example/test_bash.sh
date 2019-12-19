@@ -9,8 +9,7 @@ do
     do
             for k in $kind
             do
-                python3 koopman_test.py --T $t --type $k
-                echo "trials $i out of $trials"
+                echo "trial $i horizon $t kind $k"
             done
     done
 
