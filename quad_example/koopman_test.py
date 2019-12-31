@@ -68,7 +68,7 @@ def main():
     _R = euler2mat(np.random.uniform(-1.,1., size=(3,)))
     _p = np.array([0., 0., 0.])
     _g = RpToTrans(_R, _p).ravel()
-    _twist = np.random.uniform(-1., 1., size=(6,))
+    _twist = np.random.uniform(-0.6, +0.6, size=(6,))
     state = np.r_[_g, _twist]
 
     target_orientation = np.array([0., 0., -9.81])

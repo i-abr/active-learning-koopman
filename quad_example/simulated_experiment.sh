@@ -1,6 +1,6 @@
 #!/bin/zsh
 
-trials=2
+trials=4
 Ts=(20 30 40)
 kind=(0 1)
 for i in {1..$trials}
