@@ -9,5 +9,5 @@ python main.py
 
 ## Requirements
 ```shell
-numpy, autograd (HIPS), scipy
+numpy, scipy
 ```
