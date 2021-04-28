@@ -16,7 +16,7 @@ Included libraries: numpy, math, matplotlib, random
 *** IMPORTS ***
 '''
 
-import autograd.numpy as np
+import numpy as np
 from math import cos, acos, sin, tan, pi, sqrt
 import matplotlib.pyplot as plt
 import random

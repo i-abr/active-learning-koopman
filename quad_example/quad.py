@@ -1,7 +1,7 @@
-import autograd.numpy as np
-from autograd.numpy import cos, sin, cross
+import numpy as np
+from numpy import cos, sin, cross
 from group_theory import VecTose3, TransToRp, RpToTrans
-from autograd import jacobian
+#from autograd import jacobian
 
 class Quad(object):
 
@@ -21,8 +21,9 @@ class Quad(object):
     ang_damping = np.array([0.05, 0.05, 0.01])*40
 
     def __init__(self):
-        self.fdx = jacobian(self.f, argnum=0)
-        self.fdu = jacobian(self.f, argnum=1)
+        pass
+        #self.fdx = jacobian(self.f, argnum=0)
+        #self.fdu = jacobian(self.f, argnum=1)
 
     def f(self, x, uu):
 

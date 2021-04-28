@@ -75,13 +75,18 @@ def main():
     task.inf_weight = 0.
 
     err = []
-
+    saved_obs_traj = []
+    saved_state_traj = []
+    saved_koop_traj = []
+    saved_ctrl = []
     for t in range(simulation_time):
 
         #### measure state and transform through koopman observables
         m_state = get_measurement(state)
 
         t_state = koopman_operator.transform_state(m_state)
+        saved_koop_traj.append(t_state.copy())
+        saved_obs_traj.append(m_state.copy())
         err.append(
             np.linalg.norm(m_state[:3] - target_orientation) + np.linalg.norm(m_state[3:])
         )
@@ -104,7 +109,11 @@ def main():
 
         if np.isnan(ustar).any():
             ustar = default_action(None)
+        
 
+        ### log the true state and control
+        saved_ctrl.append(ustar.copy())
+        saved_state_traj.append(state.copy())
         ### advacne quad subject to ustar
         next_state = quad.step(state, ustar)
 
@@ -130,7 +139,11 @@ def main():
     save_data = {
         'err' : err,
         'kind' : kind,
-        'T' : horizon
+        'T' : horizon,
+        'saved_state_traj' : saved_state_traj,
+        'saved_ctrl' : saved_ctrl,
+        'saved_obs_traj' : saved_obs_traj,
+        'saved_koop_traj' : saved_koop_traj
     }
     pkl.dump(save_data, open(path + 'data_' + date_str + '.pkl', 'wb'))
 

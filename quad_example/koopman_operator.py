@@ -1,6 +1,6 @@
-import autograd.numpy as np
-from autograd.numpy import sin, cos
-from autograd.scipy.linalg import logm
+import numpy as np
+from numpy import sin, cos
+from scipy.linalg import logm
 
 NUM_STATE_OBS_ = 18
 NUM_ACTION_OBS_ = 4

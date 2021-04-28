@@ -1,4 +1,4 @@
-import autograd.numpy as np
+import numpy as np
 import matplotlib.pyplot as plt
 from koopman_operator import psix, psiu, NUM_OBS_, NUM_STATE_OBS_, NUM_ACTION_OBS_
 
