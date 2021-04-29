@@ -74,6 +74,11 @@ def main():
     target_orientation = np.array([0., 0., -9.81])
     task.inf_weight = 0.
 
+    Kx, Ku = koopman_operator.get_linearization() ### grab the linear matrices
+    lqr_policy = FiniteHorizonLQR(Kx, Ku, task.Q, task.R, task.Qf, 
+                                    horizon=horizon, target_state=task.target_expanded_state)
+    lqr_policy.sat_val = sat_val ### set the saturation value
+
     err = []
     saved_obs_traj = []
     saved_state_traj = []
@@ -90,21 +95,22 @@ def main():
         err.append(
             np.linalg.norm(m_state[:3] - target_orientation) + np.linalg.norm(m_state[3:])
         )
-        Kx, Ku = koopman_operator.get_linearization() ### grab the linear matrices
-        lqr_policy = FiniteHorizonLQR(Kx, Ku, task.Q, task.R, task.Qf, horizon=horizon) # instantiate a lqr controller
-        lqr_policy.set_target_state(task.target_expanded_state) ## set target state to koopman observable state
-        lqr_policy.sat_val = sat_val ### set the saturation value
+        #Kx, Ku = koopman_operator.get_linearization() ### grab the linear matrices
+        #lqr_policy = FiniteHorizonLQR(Kx, Ku, task.Q, task.R, task.Qf, horizon=horizon) # instantiate a lqr controller
+        #lqr_policy.set_target_state(task.target_expanded_state) ## set target state to koopman observable state
+        #lqr_policy.sat_val = sat_val ### set the saturation value
 
         ### forward sim the koopman dynamical system (here fdx, fdu is just Kx, Ku in a list)
-        trajectory, fdx, fdu, action_schedule = koopman_operator.simulate(t_state, horizon,
-                                                                                policy=lqr_policy)
-        ldx, ldu = task.get_linearization_from_trajectory(trajectory, action_schedule)
-        mudx = lqr_policy.get_linearization_from_trajectory(trajectory)
+        #trajectory, fdx, fdu, action_schedule = koopman_operator.simulate(t_state, horizon,
+        #                                                                       policy=lqr_policy)
+        #ldx, ldu = task.get_linearization_from_trajectory(trajectory, action_schedule)
+        #mudx = lqr_policy.get_linearization_from_trajectory(trajectory)
 
-        rhof = task.mdx(trajectory[-1]) ### get terminal condition for adjoint
-        rho = adjoint.simulate_adjoint(rhof, ldx, ldu, fdx, fdu, mudx, horizon)
+        #rhof = task.mdx(trajectory[-1]) ### get terminal condition for adjoint
+        #rho = adjoint.simulate_adjoint(rhof, ldx, ldu, fdx, fdu, mudx, horizon)
 
-        ustar = -np.dot(inv_control_reg, fdu[0].T.dot(rho[0])) + lqr_policy(t_state)
+        #ustar = -np.dot(inv_control_reg, fdu[0].T.dot(rho[0])) + lqr_policy(t_state)
+        ustar = lqr_policy(t_state)
         ustar = np.clip(ustar, -sat_val, sat_val) ### saturate control
 
         if np.isnan(ustar).any():

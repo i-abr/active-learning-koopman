@@ -4,7 +4,7 @@ import numpy as np
 class FiniteHorizonLQR(object):
 
 
-    def __init__(self, A, B, Q, R, F, horizon=10):
+    def __init__(self, A, B, Q, R, F, horizon=10, target_state=None):
 
 
         self.A = A
@@ -13,13 +13,14 @@ class FiniteHorizonLQR(object):
         self.R = R
         self.Rinv = np.linalg.inv(R)
         self.F = F
-        self.time_step = 1/200
+        self.time_step = 1./200.
         self.horizon = horizon
         self.sat_val = 6.0
         self.target_state = None
         self.active = 1
         self.final_cost = 0
-
+        self.target_state = target_state
+        self.K, self.r = self.get_control_gains()
     def set_target_state(self, target):
         self.target_state = target
 
@@ -39,10 +40,11 @@ class FiniteHorizonLQR(object):
             P[i-1] = P[i] - Pdot*self.time_step
             K[i-1] = self.Rinv.dot(self.B.T.dot(P[i]))
             r[i-1] = r[i] - rdot*self.time_step
+        self.K, self.r = K, r 
         return K, r
 
     def __call__(self, state):
-        K,r = self.get_control_gains()
+        K,r = self.K, self.r
         ref = -self.Rinv.dot(self.B.T).dot(r[0])
         return np.clip(-K[0].dot(state-self.target_state), -self.sat_val, self.sat_val)
     
